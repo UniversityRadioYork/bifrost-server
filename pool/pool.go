@@ -99,7 +99,7 @@ func (p *poolInner) run(t *tomb.Tomb) (err error) {
 			}
 		case broadcast := <-p.broadcast:
 			log.Println("broadcast: %q", broadcast)
-			for client, _ := range p.contents {
+			for client := range p.contents {
 				client.Broadcast <- broadcast
 			}
 		case <-t.Dying():
@@ -118,7 +118,7 @@ func (p *poolInner) run(t *tomb.Tomb) (err error) {
 }
 
 func (p *poolInner) handleChange(change *Change) {
-	var err error = nil
+	var err error
 	if change.added {
 		log.Printf("adding client: %q", change.client)
 		err = p.addClient(change.client)

@@ -66,7 +66,10 @@ func handleConnectionWrite(conn net.Conn, responses <-chan *baps3.Message, quit 
 			if !more {
 				return
 			}
-			writeResponse(conn, response)
+			if werr := writeResponse(conn, response); err != nil {
+				log.Printf("can't write: %s", werr)
+				return
+			}
 		}
 	}
 }

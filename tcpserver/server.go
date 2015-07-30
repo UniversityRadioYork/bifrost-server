@@ -37,11 +37,13 @@ func Serve(requestMap request.Map, serverid, hostport string) {
 	router := request.NewRouter(requestMap, p.Broadcast)
 	requestLoop(requests, router, &t)
 
-	t.Killf("main loop closing")
+	if kerr := t.Killf("main loop closing"); kerr != nil {
+		log.Fatal(kerr)
+	}
 
 	// To close the accept loop, we have to kill off the acceptor.
-	if err := ln.Close(); err != nil {
-		log.Fatal(err)
+	if lerr := ln.Close(); lerr != nil {
+		log.Fatal(lerr)
 	}
 
 	log.Println(t.Wait())
