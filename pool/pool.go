@@ -43,6 +43,7 @@ type poolInner struct {
 	quit      <-chan struct{}
 	broadcast <-chan *baps3.Message
 	quitting  bool
+	serverid  string
 }
 
 // Pool is the front-facing interface to a client pool.
@@ -54,7 +55,7 @@ type Pool struct {
 }
 
 // New creates a new client pool.
-func New(quit chan struct{}) *Pool {
+func New(serverid string, quit chan struct{}) *Pool {
 	changes := make(chan *Change)
 	broadcast := make(chan *baps3.Message)
 
@@ -64,6 +65,7 @@ func New(quit chan struct{}) *Pool {
 		quit:      quit,
 		broadcast: broadcast,
 		quitting:  false,
+		serverid:  serverid,
 	}
 
 	return &Pool{
@@ -129,6 +131,15 @@ func (p *poolInner) handleChange(change *Change) {
 		log.Println(err)
 	}
 	change.reply <- err == nil
+
+	// If the change was a successful add, send OHAI to the client.
+	// We have to do it _after_ we send the reply, else we could deadlock:
+	// the client waiting for the reply and us waiting for the client.
+	if err == nil && change.added {
+		// Technically, this is a unicast, but this shouldn't make any
+		// difference.
+		change.client.Broadcast <- baps3.NewMessage(baps3.RsOhai).AddArg(p.serverid)
+	}
 }
 
 func (p *poolInner) addClient(client *Client) error {
@@ -141,6 +152,7 @@ func (p *poolInner) addClient(client *Client) error {
 		return fmt.Errorf("addClient: client %q already present", client)
 	}
 	p.contents[client] = struct{}{}
+
 	return nil
 }
 

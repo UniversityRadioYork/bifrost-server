@@ -20,7 +20,7 @@ func main() {
         tcpserver.Serve(request.Map{                                                                                                                                                                                               
                 baps3.RqRead: func(b, r chan<- *baps3.Message, s []string) (bool, error) { return handleRead(b, r, t, s) },                                                                                                        
                 baps3.RqQuit: func(_, _ chan<- *baps3.Message, _ []string) (bool, error) { return true, nil },                                                                                                                     
-        }, "localhost:1234")                                                                                                             
+        }, "server-name 0.1", "localhost:1234")                                                                                                             
 }
 ```
 
