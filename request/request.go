@@ -69,8 +69,20 @@ func (m *Router) Dispatch(rq *Request) bool {
 		lstr = lerr.Error()
 	}
 
+	rq.Response <- makeAck(acktype, lstr, msg)
+	return finished
+}
+
+func makeAck(acktype, lstr string, msg *baps3.Message) *baps3.Message {
 	log.Printf("Sending ack: %q, %q", acktype, lstr)
 
-	rq.Response <- baps3.NewMessage(baps3.RsAck).AddArg(acktype).AddArg(lstr)
-	return finished
+	rmsg := baps3.NewMessage(baps3.RsAck).AddArg(acktype).AddArg(lstr)
+
+	// Append the entire request onto the end of the acknowledgement.
+	rmsg.AddArg(msg.Word().String())
+	for _, arg := range msg.Args() {
+		rmsg.AddArg(arg)
+	}
+
+	return rmsg
 }
