@@ -1,4 +1,4 @@
-// pool implements a generic client pool for Bifrost servers.
+// Package pool implements a generic client pool for Bifrost servers.
 // This is (hopefully) independent of transport, but is mainly intended for TCP/text Bifrost.
 
 package pool
@@ -11,16 +11,32 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
-// A Client is a pair of channels alllowing a Pool to talk to server clients.
-// The Client is agnostic of client transport (Text/TCP, HTTP/TCP, 9P, etc).
+// Client is a set of channels alllowing a Pool to talk to server clients.
+// The Client is agnostic of client transport (Text/TCP, HTTP/TCP, 9P, etc),
+// and the other end of each channel is expected to be wired to something
+// handling said transport.
 type Client struct {
-	// Channel for sending broadcast messages to this client.
+	// Broadcast is a channel for sending messages intended for all clients
+	// to this client.
 	Broadcast chan<- *baps3.Message
-	// Channel for sending disconnect messages to this client.
+
+	// Unicast is a channel for sending messages intended only for this
+	// client to this client.
+	Unicast chan<- *baps3.Message
+
+	// Disconnect is a channel for sending signals for this client to
+	// disconnect.
+	//
+	// When a Client receives this signal, it _must_ send a remove Change
+	// to the Pool.
+	//
+	// This should either be constantly monitored, or buffered, as all
+	// Clients are signalled on pool closure.
 	Disconnect chan<- struct{}
 }
 
 // Change is a request to the client pool to add or remove a client.
+// Changes can be created using NewAddChange and NewRemoveChange.
 type Change struct {
 	client *Client
 	added  bool
@@ -49,12 +65,19 @@ type poolInner struct {
 // Pool is the front-facing interface to a client pool.
 // It contains the pool innards, and channels to communicate with it while it is running.
 type Pool struct {
-	inner     *poolInner
-	Changes   chan<- *Change
+	inner *poolInner
+
+	// Changes is the channel to use to send Changes to the Pool.
+	// These register or un-register a Client with the Pool.
+	Changes chan<- *Change
+
+	// Broadcast is the channel used to send messages to all Clients.
+	// These messages are sent down the Client's Broadcast channel.
 	Broadcast chan<- *baps3.Message
 }
 
-// New creates a new client pool.
+// New creates a new Pool.
+// The new Pool has no Clients registered.
 func New(serverid string, quit chan struct{}) *Pool {
 	changes := make(chan *Change)
 	broadcast := make(chan *baps3.Message)
@@ -105,7 +128,15 @@ func (p *poolInner) run(t *tomb.Tomb) (err error) {
 		case <-t.Dying():
 			log.Println("client pool is beginning to close")
 
-			p.quitting = true
+			// This channel can get signalled multiple times.  We
+			// make sure we only send disconnect signals once.
+			if !p.quitting {
+				p.quitting = true
+
+				for client := range p.contents {
+					client.Disconnect <- struct{}{}
+				}
+			}
 
 			// If we don't have any connections, then close right
 			// now.  Otherwise, we wait for those connections to
@@ -136,9 +167,7 @@ func (p *poolInner) handleChange(change *Change) {
 	// We have to do it _after_ we send the reply, else we could deadlock:
 	// the client waiting for the reply and us waiting for the client.
 	if err == nil && change.added {
-		// Technically, this is a unicast, but this shouldn't make any
-		// difference.
-		change.client.Broadcast <- baps3.NewMessage(baps3.RsOhai).AddArg(p.serverid)
+		change.client.Unicast <- baps3.NewMessage(baps3.RsOhai).AddArg(p.serverid)
 	}
 }
 

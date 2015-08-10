@@ -10,11 +10,12 @@ import (
 
 // TestOhai ensures that new clients are sent an OHAI message.
 func TestOhai(t *testing.T) {
-	cast := make(chan *baps3.Message)
+	bcast := make(chan *baps3.Message)
+	ucast := make(chan *baps3.Message)
 	dcon := make(chan struct{})
 	quit := make(chan struct{})
 
-	cli := Client{Broadcast: cast, Disconnect: dcon}
+	cli := Client{Broadcast: bcast, Unicast: ucast, Disconnect: dcon}
 
 	pool := New("demo", quit)
 	var tomb tomb.Tomb
@@ -29,25 +30,35 @@ func TestOhai(t *testing.T) {
 		if !rp {
 			t.Fatal("pool rejected our client")
 		}
+		t.Log("got add-change reply")
 	case <-time.After(time.Second * 5):
 		t.Fatal("pool appears to have locked")
 	}
 
 	select {
-	case msg := <-cast:
+	case msg := <-bcast:
+		t.Fatalf("Got unexpected broadcast %q", msg.String())
+	case msg := <-ucast:
 		if w := msg.Word(); w != baps3.RsOhai {
 			t.Fatalf("expected OHAI, got %q", w.String())
 		}
 		if args := msg.Args(); len(args) != 1 {
 			t.Fatalf("expected 1 arg, got %q", args)
 		}
+		t.Logf("got OHAI: %q", msg)
 	case <-time.After(time.Second * 5):
 		t.Fatal("OHAI appears to have locked")
 	}
 
-	// TODO(CaptainHayashi): make this not necessary?
-	// Currently the client pool only closes if every single connection
-	// signals a quit, which is odd.
+	tomb.Kill(nil)
+
+	select {
+	case <-dcon:
+		t.Log("disconnect signalled")
+	case <-time.After(time.Second * 5):
+		t.Fatal("pool doesn't appear to be sending disconnect")
+	}
+
 	rchange := NewRemoveChange(&cli, reply)
 	pool.Changes <- rchange
 	select {
@@ -55,13 +66,14 @@ func TestOhai(t *testing.T) {
 		if !rp {
 			t.Fatal("pool rejected our client disconnect")
 		}
+		t.Log("got remove-change reply")
 	case <-time.After(time.Second * 5):
 		t.Fatal("pool disconnect appears to have locked")
 	}
 
-	tomb.Kill(nil)
 	select {
 	case <-tomb.Dead():
+		t.Log("pool now dead")
 	case <-time.After(time.Second * 5):
 		t.Fatal("pool doesn't appear to be dying")
 	}
