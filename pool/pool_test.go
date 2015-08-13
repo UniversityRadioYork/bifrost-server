@@ -8,6 +8,18 @@ import (
 	"gopkg.in/tomb.v2"
 )
 
+func waitForReply(t *testing.T, reply <-chan bool) {
+	select {
+	case rp := <-reply:
+		if !rp {
+			t.Fatal("pool rejected client change")
+		}
+		t.Log("got client change reply")
+	case <-time.After(time.Second * 5):
+		t.Fatal("pool appears to have locked")
+	}
+}
+
 // TestOhai ensures that new clients are sent an OHAI message.
 func TestOhai(t *testing.T) {
 	bcast := make(chan *baps3.Message)
@@ -25,15 +37,7 @@ func TestOhai(t *testing.T) {
 
 	change := NewAddChange(&cli, reply)
 	pool.Changes <- change
-	select {
-	case rp := <-reply:
-		if !rp {
-			t.Fatal("pool rejected our client")
-		}
-		t.Log("got add-change reply")
-	case <-time.After(time.Second * 5):
-		t.Fatal("pool appears to have locked")
-	}
+	waitForReply(t, reply)
 
 	select {
 	case msg := <-bcast:
@@ -61,15 +65,7 @@ func TestOhai(t *testing.T) {
 
 	rchange := NewRemoveChange(&cli, reply)
 	pool.Changes <- rchange
-	select {
-	case rp := <-reply:
-		if !rp {
-			t.Fatal("pool rejected our client disconnect")
-		}
-		t.Log("got remove-change reply")
-	case <-time.After(time.Second * 5):
-		t.Fatal("pool disconnect appears to have locked")
-	}
+	waitForReply(t, reply)
 
 	select {
 	case <-tomb.Dead():

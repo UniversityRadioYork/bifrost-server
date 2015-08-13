@@ -1,6 +1,5 @@
 // Package pool implements a generic client pool for Bifrost servers.
 // This is (hopefully) independent of transport, but is mainly intended for TCP/text Bifrost.
-
 package pool
 
 import (
@@ -105,38 +104,39 @@ func (p *Pool) Run(t *tomb.Tomb) error {
 	return p.inner.run(t)
 }
 
-func (p *poolInner) run(t *tomb.Tomb) (err error) {
-	defer func() { log.Println("client pool is closing") }()
+func (p *poolInner) sendBroadcast(cast *baps3.Message) {
+	for client := range p.contents {
+		client.Broadcast <- cast
+	}
+}
 
+func (p *poolInner) signalQuits() {
+	// This channel can get signalled multiple times.  We
+	// make sure we only send disconnect signals once.
+	if !p.quitting {
+		p.quitting = true
+
+		for client := range p.contents {
+			client.Disconnect <- struct{}{}
+		}
+	}
+}
+
+func (p *poolInner) run(t *tomb.Tomb) (err error) {
 	for {
 		select {
 		case change := <-p.changes:
 			p.handleChange(change)
-
-			log.Printf("clientPool: now %d clients", len(p.contents))
 
 			// If we're quitting, we're now waiting for all of the
 			// connections to close so we can quit.
 			if p.quitting && 0 == len(p.contents) {
 				return
 			}
-		case broadcast := <-p.broadcast:
-			log.Println("broadcast: %q", broadcast)
-			for client := range p.contents {
-				client.Broadcast <- broadcast
-			}
+		case cast := <-p.broadcast:
+			p.sendBroadcast(cast)
 		case <-t.Dying():
-			log.Println("client pool is beginning to close")
-
-			// This channel can get signalled multiple times.  We
-			// make sure we only send disconnect signals once.
-			if !p.quitting {
-				p.quitting = true
-
-				for client := range p.contents {
-					client.Disconnect <- struct{}{}
-				}
-			}
+			p.signalQuits()
 
 			// If we don't have any connections, then close right
 			// now.  Otherwise, we wait for those connections to
