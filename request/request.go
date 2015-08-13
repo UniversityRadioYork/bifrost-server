@@ -26,10 +26,11 @@ func NewRequest(raw []string, contents *baps3.Message, response chan<- *baps3.Me
 
 // Handler is the type of functions that handle a request.
 // The function is given, in turn:
-//   - A broadcast channel (sending messages to all connected clients);
-//   - A unicast channel (sending messages only to the requesting client);
-//   - The request arguments (not including the word: we assume that this is
-//     implied by the Handler being part of a Map from words to Handlers.)
+//
+// - A broadcast channel (sending messages to all connected clients);
+// - A unicast channel (sending messages only to the requesting client);
+// - The request arguments (not including the word: we assume that this is
+//   implied by the Handler being part of a Map from words to Handlers.)
 // It returns a Boolean flag specifying whether the server should stop due to
 // this request (useful for requests like RqQuit), and an error (may be nil).
 type Handler func(chan<- *baps3.Message, chan<- *baps3.Message, []string) (bool, error)
