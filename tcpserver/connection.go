@@ -112,7 +112,7 @@ func handleConnectionRead(conn net.Conn, requests chan<- *request.Request, respo
 			if err != nil {
 				log.Printf("bad message: %q", line)
 			} else {
-				requests <- request.NewRequest(msg, responses)
+				requests <- request.NewRequest(line, msg, responses)
 			}
 		}
 	}

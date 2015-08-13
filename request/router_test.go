@@ -6,6 +6,40 @@ import (
 	"github.com/UniversityRadioYork/baps3-go"
 )
 
+// TestAckUnknown tests whether the correct ACK is sent on failure.
+func TestAckUnknown(t *testing.T) {
+	cast := make(chan *baps3.Message)
+
+	router := NewRouter(
+		map[baps3.MessageWord]Handler{
+		// Intentionally left blank
+		},
+		cast,
+	)
+
+	rs := make(chan *baps3.Message, 1)
+	rq := NewRequest([]string{"xyxxy", "1", "noseybonk"}, baps3.NewMessage(baps3.RqUnknown).AddArg("1").AddArg("noseybonk"), rs)
+
+	router.Dispatch(rq)
+
+	select {
+	case msg := <-rs:
+		if word := msg.Word(); word != baps3.RsAck {
+			t.Fatalf("expected ACK, got %q", word.String())
+		}
+		args := msg.Args()
+		if len(args) != 5 || args[0] != "WHAT" || args[1] != `unknown request "xyxxy"` || args[2] != "xyxxy" || args[3] != "1" || args[4] != "noseybonk" {
+			packed, err := msg.Pack()
+			if err != nil {
+				t.Fatalf("message packer failed")
+			}
+			t.Fatalf(`expected "ACK WHAT 'unknown request "xyxxy"' xyxxy 1 noseybonk, got: %s`, packed)
+		}
+	default:
+		t.Fatal("no response sent")
+	}
+}
+
 // TestACKSuccess tests whether the correct ACK is sent on success.
 func TestAckSuccess(t *testing.T) {
 	cast := make(chan *baps3.Message)
@@ -20,7 +54,7 @@ func TestAckSuccess(t *testing.T) {
 	)
 
 	rs := make(chan *baps3.Message, 1)
-	rq := NewRequest(baps3.NewMessage(baps3.RqRead).AddArg("1").AddArg("/foo/bar"), rs)
+	rq := NewRequest([]string{"read", "1", "/foo/bar"}, baps3.NewMessage(baps3.RqRead).AddArg("1").AddArg("/foo/bar"), rs)
 
 	router.Dispatch(rq)
 

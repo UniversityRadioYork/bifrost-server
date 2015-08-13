@@ -8,14 +8,17 @@ import (
 
 // Request is the type of a request.
 // It contains a Message, as well as a channel to use for responses to the requesting client.
+// For use in ACKs later on, it also contains the raw, tokenised line.
 type Request struct {
+	Raw      []string
 	Contents *baps3.Message
 	Response chan<- *baps3.Message
 }
 
 // NewRequest creates a new Request with the given contents and response channel.
-func NewRequest(contents *baps3.Message, response chan<- *baps3.Message) *Request {
+func NewRequest(raw []string, contents *baps3.Message, response chan<- *baps3.Message) *Request {
 	return &Request{
+		Raw:      raw,
 		Contents: contents,
 		Response: response,
 	}
@@ -48,6 +51,7 @@ func NewRouter(handlers Map, broadcast chan<- *baps3.Message) *Router {
 func (m *Router) Dispatch(rq *Request) bool {
 	var lerr error
 	finished := false
+	iswhat := false
 
 	msg := rq.Contents
 
@@ -56,31 +60,38 @@ func (m *Router) Dispatch(rq *Request) bool {
 	if ok {
 		finished, lerr = cmdfunc(m.broadcast, rq.Response, msg.Args())
 	} else {
-		lerr = fmt.Errorf("FIXME: unknown command %q", msg.Word())
+		lerr = fmt.Errorf("unknown request %q", rq.Raw[0])
+		iswhat = true
 	}
 
-	acktype := "???"
 	lstr := "Success"
-	if lerr == nil {
-		acktype = "OK"
-	} else {
-		// TODO: proper error distinguishment
-		acktype = "FAIL"
+	if lerr != nil {
 		lstr = lerr.Error()
 	}
 
-	rq.Response <- makeAck(acktype, lstr, msg)
+	acktype := "OK"
+	if lerr == nil {
+		// Intentionally left blank.  This would be "OK", but we set it
+		// above to initialise acktype.
+	} else if iswhat {
+		// TODO: make more robust
+		acktype = "WHAT"
+	} else {
+		// TODO: proper error distinguishment
+		acktype = "FAIL"
+	}
+
+	rq.Response <- makeAck(rq.Raw, acktype, lstr)
 	return finished
 }
 
-func makeAck(acktype, lstr string, msg *baps3.Message) *baps3.Message {
+func makeAck(raw []string, acktype, lstr string) *baps3.Message {
 	log.Printf("Sending ack: %q, %q", acktype, lstr)
 
 	rmsg := baps3.NewMessage(baps3.RsAck).AddArg(acktype).AddArg(lstr)
 
-	// Append the entire request onto the end of the acknowledgement.
-	rmsg.AddArg(msg.Word().String())
-	for _, arg := range msg.Args() {
+	// Append the entire raw request onto the end of the acknowledgement.
+	for _, arg := range raw {
 		rmsg.AddArg(arg)
 	}
 
