@@ -18,6 +18,7 @@ func TestAckUnknown(t *testing.T) {
 		// Intentionally left blank
 		},
 		cast,
+		"",
 	)
 
 	rs := make(chan *baps3.Message, 1)
@@ -47,11 +48,12 @@ func TestAckSuccess(t *testing.T) {
 
 	router := NewRouter(
 		map[baps3.MessageWord]Handler{
-			baps3.RqRead: func(_, _ chan<- *baps3.Message, _ []string) (bool, error) {
+			baps3.RqRead: func(_, _ chan<- *baps3.Message, _ []string, _ interface{}) (bool, error) {
 				return false, nil
 			},
 		},
 		cast,
+		"",
 	)
 
 	rs := make(chan *baps3.Message, 1)
