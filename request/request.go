@@ -31,9 +31,10 @@ func NewRequest(raw []string, contents *baps3.Message, response chan<- *baps3.Me
 // - A unicast channel (sending messages only to the requesting client);
 // - The request arguments (not including the word: we assume that this is
 //   implied by the Handler being part of a Map from words to Handlers.)
+// - An arbitrary variable of your choice.
 // It returns a Boolean flag specifying whether the server should stop due to
 // this request (useful for requests like RqQuit), and an error (may be nil).
-type Handler func(chan<- *baps3.Message, chan<- *baps3.Message, []string) (bool, error)
+type Handler func(chan<- *baps3.Message, chan<- *baps3.Message, []string, interface{}) (bool, error)
 
 // Map is a map from requests (as message words) to Handlers.
 type Map map[baps3.MessageWord]Handler
@@ -42,13 +43,15 @@ type Map map[baps3.MessageWord]Handler
 type Router struct {
 	handlers  Map
 	broadcast chan<- *baps3.Message
+	arbitrary interface{}
 }
 
 // NewRouter creates a new Router with the given handlers and broadcast channel.
-func NewRouter(handlers Map, broadcast chan<- *baps3.Message) *Router {
+func NewRouter(handlers Map, broadcast chan<- *baps3.Message, arbitrary interface{}) *Router {
 	return &Router{
 		handlers:  handlers,
 		broadcast: broadcast,
+		arbitrary: arbitrary,
 	}
 }
 
@@ -64,7 +67,7 @@ func (m *Router) Dispatch(rq *Request) bool {
 	// TODO: handle bad command
 	cmdfunc, ok := m.handlers[msg.Word()]
 	if ok {
-		finished, lerr = cmdfunc(m.broadcast, rq.Response, msg.Args())
+		finished, lerr = cmdfunc(m.broadcast, rq.Response, msg.Args(), m.arbitrary)
 	} else {
 		lerr = fmt.Errorf("unknown request %q", rq.Raw[0])
 		iswhat = true

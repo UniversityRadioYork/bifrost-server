@@ -12,7 +12,7 @@ import (
 // Serve creates and runs a Bifrost server using TCP as a transport.
 // It will respond to requests using the functions in requestMap.
 // New clients will be served 'OHAI <serverid>'.
-func Serve(requestMap request.Map, serverid, hostport string) {
+func Serve(requestMap request.Map, arbitrary interface{}, serverid, hostport string) {
 	ln, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatal(err)
@@ -34,7 +34,7 @@ func Serve(requestMap request.Map, serverid, hostport string) {
 
 	t.Go(func() error { return acceptLoop(ln, requests, p, &t) })
 
-	router := request.NewRouter(requestMap, p.Broadcast)
+	router := request.NewRouter(requestMap, p.Broadcast, arbitrary)
 	requestLoop(requests, router, &t)
 
 	if kerr := t.Killf("main loop closing"); kerr != nil {
