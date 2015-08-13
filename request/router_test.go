@@ -6,6 +6,9 @@ import (
 	"github.com/UniversityRadioYork/baps3-go"
 )
 
+func failIfNotAck(t *testing.T, msg *baps3.Message) {
+}
+
 // TestAckUnknown tests whether the correct ACK is sent on failure.
 func TestAckUnknown(t *testing.T) {
 	cast := make(chan *baps3.Message)
@@ -24,9 +27,7 @@ func TestAckUnknown(t *testing.T) {
 
 	select {
 	case msg := <-rs:
-		if word := msg.Word(); word != baps3.RsAck {
-			t.Fatalf("expected ACK, got %q", word.String())
-		}
+		failIfNotAck(t, msg)
 		args := msg.Args()
 		if len(args) != 5 || args[0] != "WHAT" || args[1] != `unknown request "xyxxy"` || args[2] != "xyxxy" || args[3] != "1" || args[4] != "noseybonk" {
 			packed, err := msg.Pack()
@@ -60,9 +61,7 @@ func TestAckSuccess(t *testing.T) {
 
 	select {
 	case msg := <-rs:
-		if word := msg.Word(); word != baps3.RsAck {
-			t.Fatalf("expected ACK, got %q", word.String())
-		}
+		failIfNotAck(t, msg)
 		args := msg.Args()
 		if len(args) != 5 || args[0] != "OK" || args[1] != "Success" || args[2] != "read" || args[3] != "1" || args[4] != "/foo/bar" {
 			t.Fatalf(`expected "ACK OK Success read 1 /foo/bar", got %q`, msg.String())
