@@ -9,18 +9,19 @@ This project provides a minimal common framework for servers using the Bifrost (
 Launching a TCP Bifrost server that responds to `read` and `quit`:
 
 ```go
-import (                                                                                                                      "github.com/UniversityRadioYork/baps3-go"
+import (
+        "github.com/UniversityRadioYork/baps3-go"
         "github.com/UniversityRadioYork/bifrost-server/request"
         "github.com/UniversityRadioYork/bifrost-server/tcpserver"
-)                                                                                                                     
+)
+
 
 func main() {
         // ...
-                    
-        tcpserver.Serve(request.Map{                                                                                                                                                                                               
-                baps3.RqRead: func(b, r chan<- *baps3.Message, s []string) (bool, error) { return handleRead(b, r, t, s) },                                                                                                        
-                baps3.RqQuit: func(_, _ chan<- *baps3.Message, _ []string) (bool, error) { return true, nil },                                                                                                                     
-        }, "server-name 0.1", "localhost:1234")                                                                                                             
+        tcpserver.Serve(request.Map{
+                baps3.RqRead: func(b, r chan<- *baps3.Message, s []string) (bool, error) { return handleRead(b, r, t, s) },
+                baps3.RqQuit: func(_, _ chan<- *baps3.Message, _ []string) (bool, error) { return true, nil },
+        }, "server-name 0.1", "localhost:1234")
 }
 ```
 
